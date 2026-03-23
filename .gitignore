@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Flask/Development
+instance/
+.pytest_cache/
+htmlcov/
+*.log
+
+# DBSC/Certificates
+*.pem
+*.crt
+*.key
