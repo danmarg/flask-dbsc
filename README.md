@@ -1,6 +1,8 @@
 # Flask-DBSC Reference Implementation
 
-This project provides a reference implementation of **Device Bound Session Credentials (DBSC)** for Flask. DBSC helps mitigate session hijacking by binding session cookies to the hardware-backed keys on the user's device.
+This project provides a reference implementation of **Device Bound Session Credentials (DBSC)** for Flask. DBSC is a W3C specification that helps mitigate session hijacking by binding session cookies to hardware-backed keys on the user's device.
+
+**Spec**: [https://w3c.github.io/webappsec-dbsc/](https://w3c.github.io/webappsec-dbsc/)
 
 ## Features
 - **DBSCExtension**: Easy integration with existing Flask applications.
