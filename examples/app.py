@@ -6,7 +6,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from flask import Flask, session, request, redirect, url_for, make_response, jsonify, render_template_string
 from flask_sqlalchemy import SQLAlchemy
-from flask_dbsc import DBSC, SQLAlchemyStore
+from flask_dbsc import DBSC, SQLAlchemyStore, DBSCSessionMixin, DBSCChallengeMixin
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 logging.basicConfig(level=logging.DEBUG)
@@ -20,10 +20,20 @@ app.logger.setLevel(logging.DEBUG)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 db = SQLAlchemy(app)
-dbsc = DBSC(app, storage=SQLAlchemyStore(db))
+
+# Define concrete models using the DBSC mixins.
+# In an existing app these live alongside your other models and are included
+# in your normal Flask-Migrate / Alembic migrations.
+class DBSCSession(db.Model, DBSCSessionMixin):
+    __tablename__ = 'dbsc_sessions'
+
+class DBSCChallenge(db.Model, DBSCChallengeMixin):
+    __tablename__ = 'dbsc_challenges'
+
+dbsc = DBSC(app, storage=SQLAlchemyStore(db, DBSCSession, DBSCChallenge))
 
 with app.app_context():
-    db.create_all()
+    db.create_all()  # replace with Flask-Migrate in a real app
 
 DBSC_HEADERS = [
     'Secure-Session-Response',

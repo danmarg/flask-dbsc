@@ -64,39 +64,33 @@ class MemoryStore(BaseStore):
 
 class SQLAlchemyStore(BaseStore):
     """
-    Flask-SQLAlchemy-backed store. Pass your app's `db` instance:
+    Flask-SQLAlchemy-backed store.
+
+    The developer defines their own model classes using the provided mixins
+    and passes them in. This keeps the models visible to Alembic autogenerate
+    and lets the developer customise them (e.g. add a FK to their User model).
+
+    Typical setup::
 
         from flask_sqlalchemy import SQLAlchemy
         from flask_dbsc import DBSC, SQLAlchemyStore
+        from flask_dbsc.models import DBSCSessionMixin, DBSCChallengeMixin
 
         db = SQLAlchemy()
-        dbsc = DBSC(storage=SQLAlchemyStore(db))
 
-        db.init_app(app)
-        dbsc.init_app(app)
+        class DBSCSession(db.Model, DBSCSessionMixin):
+            __tablename__ = 'dbsc_sessions'
 
-        with app.app_context():
-            db.create_all()
+        class DBSCChallenge(db.Model, DBSCChallengeMixin):
+            __tablename__ = 'dbsc_challenges'
+
+        dbsc = DBSC(storage=SQLAlchemyStore(db, DBSCSession, DBSCChallenge))
     """
 
-    def __init__(self, db):
+    def __init__(self, db, session_model, challenge_model):
         self.db = db
-        self.DBSCSession, self.DBSCChallenge = self._define_models(db)
-
-    def _define_models(self, db):
-        class DBSCSession(db.Model):
-            __tablename__ = 'dbsc_sessions'
-            session_id   = db.Column(db.String(64),  primary_key=True)
-            public_key   = db.Column(db.Text,         nullable=False)
-            metadata_json = db.Column(db.Text)
-            expires_at   = db.Column(db.Float,        nullable=False, index=True)
-
-        class DBSCChallenge(db.Model):
-            __tablename__ = 'dbsc_challenges'
-            challenge  = db.Column(db.String(64), primary_key=True)
-            expires_at = db.Column(db.Float,      nullable=False)
-
-        return DBSCSession, DBSCChallenge
+        self.DBSCSession = session_model
+        self.DBSCChallenge = challenge_model
 
     # --- sessions ---
 
