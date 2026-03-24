@@ -14,7 +14,7 @@ class TestDBSCUtils(unittest.TestCase):
 
     def test_verify_registration_jwt(self):
         # Create a self-signed registration token
-        header = {'alg': 'ES256', 'jwk': self.public_key_jwk}
+        header = {'alg': 'ES256', 'typ': 'dbsc+jwt', 'jwk': self.public_key_jwk}
         payload = {
             'iat': int(time.time()),
             'exp': int(time.time()) + 60,
