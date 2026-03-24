@@ -36,8 +36,9 @@ def verify_registration_jwt(token, expected_aud=None):
         claims = jwt.decode(token, public_key_jwk)
         claims.validate()
 
-        # Issue #4: validate aud against the registration endpoint URL
-        if expected_aud and claims.get('aud') != expected_aud:
+        # Validate aud only if the JWT includes it — Chrome omits aud in
+        # registration JWTs, so we must not reject tokens that lack the claim.
+        if expected_aud and claims.get('aud') is not None and claims.get('aud') != expected_aud:
             raise ValueError(f"Audience mismatch: expected {expected_aud!r}, got {claims.get('aud')!r}")
 
         return public_key_jwk, claims

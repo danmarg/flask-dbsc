@@ -1,6 +1,5 @@
 from flask import request, make_response, jsonify, current_app, url_for
 import uuid
-import time
 from .storage import MemoryStore
 from .utils import (
     verify_registration_jwt,
@@ -17,9 +16,6 @@ class DBSC:
             'refresh_path': '/dbsc/refresh',
             'supported_algos': '(ES256 RS256)'
         }
-        # Issue #3: storage for pending challenges, keyed by challenge value.
-        # Each entry is the expiry timestamp (5-minute TTL).
-        self._pending_challenges = {}
         if app is not None:
             self.init_app(app)
 
@@ -36,7 +32,7 @@ class DBSC:
             challenge = str(uuid.uuid4())
 
         # Issue #3: store the challenge so we can verify jti on registration
-        self._pending_challenges[challenge] = time.time() + 300  # 5-minute TTL
+        self.storage.store_challenge(challenge, ttl=300)
 
         header_val = (
             f"{self.config['supported_algos']}"
@@ -45,15 +41,6 @@ class DBSC:
         )
         response.headers['Secure-Session-Registration'] = header_val
         return response
-
-    def _consume_challenge(self, jti):
-        """Validate and consume a pending challenge (one-time use)."""
-        expiry = self._pending_challenges.get(jti)
-        if expiry is None:
-            raise ValueError(f"Unknown or already-used challenge: {jti!r}")
-        del self._pending_challenges[jti]
-        if time.time() > expiry:
-            raise ValueError("Challenge has expired")
 
     def handle_register(self):
         """
@@ -69,7 +56,7 @@ class DBSC:
 
             # Issue #3: verify the jti matches a challenge we actually issued
             jti = claims.get('jti')
-            self._consume_challenge(jti)
+            self.storage.consume_challenge(jti)
 
             dbsc_session_id = str(uuid.uuid4())
 
@@ -126,7 +113,14 @@ class DBSC:
             verify_pop_jwt(token, public_key, expected_aud=refresh_url, expected_sub=session_id)
 
             # Issue new short-lived cookie
-            resp = make_response(jsonify({"session_identifier": session_id}))
+            origin = request.scheme + '://' + request.host
+            instructions = generate_session_instructions(
+                session_id=session_id,
+                origin=origin,
+                refresh_url=self.config['refresh_path'],
+                cookie_name=self.config['cookie_name']
+            )
+            resp = make_response(jsonify(instructions))
             resp.set_cookie(self.config['cookie_name'], session_id,
                             secure=True, httponly=True, samesite='Strict', max_age=600)
             return resp

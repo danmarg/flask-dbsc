@@ -101,7 +101,17 @@ def login():
     username = request.form.get('username')
     session['user'] = username
 
-    resp = make_response(redirect(url_for('index')))
+    # DBSC: Secure-Session-Registration must be on a 2xx response — Chrome
+    # ignores it on 3xx redirects (spec §8.8). Use a JS redirect with a short
+    # delay so Chrome has time to complete the registration handshake (and set
+    # the bound cookie) before the next navigation sends a request.
+    resp = make_response(
+        '<html><head><script>'
+        'setTimeout(function(){ window.location.replace("/"); }, 1000);'
+        '</script></head></html>',
+        200
+    )
+    resp.content_type = 'text/html'
     return dbsc.initiate(resp)
 
 @app.route('/logout')
