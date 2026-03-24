@@ -82,6 +82,9 @@ INDEX_TEMPLATE = """
     <hr>
     <h3>DBSC Status</h3>
     <p>DBSC Cookie ({{ dbsc_cookie_name }}): {{ dbsc_cookie_val or 'Not Set' }}</p>
+
+    <hr>
+    <p><a href="https://github.com/danmarg/flask-dbsc">View on GitHub</a></p>
 </body>
 </html>
 """
