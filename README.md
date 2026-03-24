@@ -14,6 +14,10 @@ This project provides a reference implementation of **Device Bound Session Crede
 - `examples/`: A demo application showing how to integrate DBSC with standard Flask sessions.
 - `tests/`: Unit tests for the cryptographic verification logic.
 
+## Live Demo
+
+A live demo is running at **https://flask-dbsc-demo.fly.dev**. Log in with any username using Chrome 130+ to see DBSC session registration in action.
+
 ## Getting Started
 
 ### Prerequisites
