@@ -22,4 +22,4 @@ EXPOSE 8080
 
 # Command to run the application
 # Use gunicorn for production
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--access-logfile", "-", "--log-level", "debug", "app:app"]

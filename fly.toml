@@ -19,5 +19,9 @@ primary_region = "sjc"
   cpus = 1
   memory_mb = 256
 
+[[mounts]]
+  source = "dbsc_data"
+  destination = "/data"
+
 [env]
   PYTHONPATH = "/app"
