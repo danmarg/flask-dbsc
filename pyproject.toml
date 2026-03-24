@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "flask-dbsc"
+version = "0.1.0"
+description = "Flask extension implementing W3C Device Bound Session Credentials (DBSC)"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.12"
+dependencies = [
+    "Flask",
+    "authlib",
+    "cryptography",
+    "pyOpenSSL",
+]
+
+[project.urls]
+Homepage = "https://github.com/danmarg/flask-dbsc"
+Repository = "https://github.com/danmarg/flask-dbsc"
