@@ -17,6 +17,9 @@ class DBSC:
             'refresh_path': '/dbsc/refresh',
             'supported_algos': '(ES256 RS256)'
         }
+        # Issue #3: storage for pending challenges, keyed by challenge value.
+        # Each entry is the expiry timestamp (5-minute TTL).
+        self._pending_challenges = {}
         if app is not None:
             self.init_app(app)
 
@@ -29,48 +32,68 @@ class DBSC:
         """
         Adds the Secure-Session-Registration header to initiate DBSC on the browser.
         """
-        header_val = f"{self.config['supported_algos']}; path=\"{self.config['registration_path']}\""
-        if challenge:
-            header_val += f"; challenge=\"{challenge}\""
-        
+        if challenge is None:
+            challenge = str(uuid.uuid4())
+
+        # Issue #3: store the challenge so we can verify jti on registration
+        self._pending_challenges[challenge] = time.time() + 300  # 5-minute TTL
+
+        header_val = (
+            f"{self.config['supported_algos']}"
+            f";path=\"{self.config['registration_path']}\""
+            f";challenge=\"{challenge}\""
+        )
         response.headers['Secure-Session-Registration'] = header_val
         return response
+
+    def _consume_challenge(self, jti):
+        """Validate and consume a pending challenge (one-time use)."""
+        expiry = self._pending_challenges.get(jti)
+        if expiry is None:
+            raise ValueError(f"Unknown or already-used challenge: {jti!r}")
+        del self._pending_challenges[jti]
+        if time.time() > expiry:
+            raise ValueError("Challenge has expired")
 
     def handle_register(self):
         """
         Endpoint called by the browser to register the public key.
         """
-        token = request.get_data()
+        # The browser sends the registration JWT in the Secure-Session-Response header
+        # as an sf-string (RFC 9651), so strip the surrounding quotes.
+        raw = request.headers.get('Secure-Session-Response', '')
+        token = raw.strip().strip('"')
         try:
-            public_key, claims = verify_registration_jwt(token)
-            
-            # Use current session or create a new session ID for DBSC
-            # In a real app, this should be linked to the user's primary session.
+            reg_url = url_for('dbsc_register', _external=True)
+            public_key, claims = verify_registration_jwt(token, expected_aud=reg_url)
+
+            # Issue #3: verify the jti matches a challenge we actually issued
+            jti = claims.get('jti')
+            self._consume_challenge(jti)
+
             dbsc_session_id = str(uuid.uuid4())
-            
+
             # Store the key
             self.storage.store_key(dbsc_session_id, public_key, metadata={
                 'user_agent': request.user_agent.string,
                 'remote_addr': request.remote_addr
             })
-            
+
             # Return session instructions
-            domain = request.host.split(':')[0]
+            origin = request.scheme + '://' + request.host
             instructions = generate_session_instructions(
                 session_id=dbsc_session_id,
-                domain=domain,
-                path="/",
+                origin=origin,
                 refresh_url=self.config['refresh_path'],
                 cookie_name=self.config['cookie_name']
             )
-            
+
             resp = make_response(jsonify(instructions))
             # Set the initial short-lived bound cookie
-            # DBSC works best with short-lived cookies, e.g., 5-15 mins
-            resp.set_cookie(self.config['cookie_name'], dbsc_session_id, 
+            resp.set_cookie(self.config['cookie_name'], dbsc_session_id,
                             secure=True, httponly=True, samesite='Strict', max_age=600)
             return resp
-            
+
         except Exception as e:
             return jsonify({"error": "Registration failed", "details": str(e)}), 400
 
@@ -78,38 +101,39 @@ class DBSC:
         """
         Endpoint called by the browser when the bound cookie needs refresh.
         """
-        # DBSC browsers may use Sec-Session-Id or Sec-Secure-Session-Id
-        session_id = request.headers.get('Sec-Session-Id') or request.headers.get('Sec-Secure-Session-Id')
-        
+        # Issue #2: Sec-Secure-Session-Id is an sf-string, strip the quotes.
+        raw_id = request.headers.get('Sec-Secure-Session-Id') or request.headers.get('Sec-Session-Id', '')
+        session_id = raw_id.strip().strip('"')
+
         if not session_id:
             # Also check the cookie
             session_id = request.cookies.get(self.config['cookie_name'])
 
         if not session_id:
             return jsonify({"error": "Missing session identifier"}), 401
-            
+
         public_key, metadata = self.storage.get_key(session_id)
         if not public_key:
             return jsonify({"error": "Session not found or expired"}), 403
-            
-        token = request.get_data()
+
+        # The browser sends the PoP JWT in the Secure-Session-Response header
+        # as an sf-string (RFC 9651), so strip the surrounding quotes.
+        raw = request.headers.get('Secure-Session-Response', '')
+        token = raw.strip().strip('"')
         try:
-            # Expected audience should be the refresh URL
             # Using url_for ensures it respects ProxyFix/X-Forwarded-Proto
             refresh_url = url_for('dbsc_refresh', _external=True)
             verify_pop_jwt(token, public_key, expected_aud=refresh_url, expected_sub=session_id)
-            
+
             # Issue new short-lived cookie
             resp = make_response(jsonify({"session_identifier": session_id}))
-            resp.set_cookie(self.config['cookie_name'], session_id, 
+            resp.set_cookie(self.config['cookie_name'], session_id,
                             secure=True, httponly=True, samesite='Strict', max_age=600)
             return resp
-            
+
         except Exception as e:
-            # If verification fails, we could issue a new challenge
             challenge = str(uuid.uuid4())
             resp = make_response(jsonify({"error": "PoP verification failed", "details": str(e)}), 403)
-            # DBSC challenge format
             resp.headers['Secure-Session-Challenge'] = f'"{challenge}";id="{session_id}"'
             return resp
 
@@ -120,6 +144,6 @@ class DBSC:
         session_id = request.cookies.get(self.config['cookie_name'])
         if not session_id:
             return False
-        
+
         public_key, _ = self.storage.get_key(session_id)
         return public_key is not None
