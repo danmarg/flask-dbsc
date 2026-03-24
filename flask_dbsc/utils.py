@@ -24,7 +24,6 @@ def verify_registration_jwt(token, expected_aud=None):
         header_data = base64.urlsafe_b64decode(header_segment)
         header = json.loads(header_data)
 
-        # Issue #5: validate typ claim per spec §9.10
         if header.get('typ') != 'dbsc+jwt':
             raise ValueError(f"Invalid typ: expected 'dbsc+jwt', got {header.get('typ')!r}")
 
@@ -77,7 +76,6 @@ def generate_session_instructions(session_id, origin, refresh_url, cookie_name):
         "session_identifier": session_id,
         "refresh_url": refresh_url,
         "scope": {
-            # Issue #1: correct spec scope shape
             "origin": origin,
             "include_site": True,
             "scope_specification": [

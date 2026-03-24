@@ -31,7 +31,6 @@ class DBSC:
         if challenge is None:
             challenge = str(uuid.uuid4())
 
-        # Issue #3: store the challenge so we can verify jti on registration
         self.storage.store_challenge(challenge, ttl=300)
 
         header_val = (
@@ -54,7 +53,6 @@ class DBSC:
             reg_url = url_for('dbsc_register', _external=True)
             public_key, claims = verify_registration_jwt(token, expected_aud=reg_url)
 
-            # Issue #3: verify the jti matches a challenge we actually issued
             jti = claims.get('jti')
             self.storage.consume_challenge(jti)
 
@@ -88,7 +86,6 @@ class DBSC:
         """
         Endpoint called by the browser when the bound cookie needs refresh.
         """
-        # Issue #2: Sec-Secure-Session-Id is an sf-string, strip the quotes.
         raw_id = request.headers.get('Sec-Secure-Session-Id') or request.headers.get('Sec-Session-Id', '')
         session_id = raw_id.strip().strip('"')
 
