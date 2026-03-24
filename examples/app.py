@@ -5,9 +5,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from flask import Flask, session, request, redirect, url_for, make_response, jsonify, render_template_string
 from flask_dbsc import DBSC
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
-app.secret_key = 'super-secret-key-for-session'
+app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-key-for-session')
+
+# For production behind a proxy (like Fly.io)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Initialize DBSC
 dbsc = DBSC(app)

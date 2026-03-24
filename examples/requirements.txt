@@ -1,2 +1,5 @@
 Flask
 authlib
+cryptography
+pyOpenSSL
+gunicorn

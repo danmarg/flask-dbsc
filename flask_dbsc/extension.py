@@ -1,4 +1,4 @@
-from flask import request, make_response, jsonify, current_app
+from flask import request, make_response, jsonify, current_app, url_for
 import uuid
 import time
 from .storage import MemoryStore
@@ -27,13 +27,13 @@ class DBSC:
 
     def initiate(self, response, challenge=None):
         """
-        Adds the Sec-Session-Registration header to initiate DBSC on the browser.
+        Adds the Secure-Session-Registration header to initiate DBSC on the browser.
         """
         header_val = f"{self.config['supported_algos']}; path=\"{self.config['registration_path']}\""
         if challenge:
             header_val += f"; challenge=\"{challenge}\""
         
-        response.headers['Sec-Session-Registration'] = header_val
+        response.headers['Secure-Session-Registration'] = header_val
         return response
 
     def handle_register(self):
@@ -78,7 +78,9 @@ class DBSC:
         """
         Endpoint called by the browser when the bound cookie needs refresh.
         """
-        session_id = request.headers.get('Sec-Session-Id') # DBSC uses this header or cookie
+        # DBSC browsers may use Sec-Session-Id or Sec-Secure-Session-Id
+        session_id = request.headers.get('Sec-Session-Id') or request.headers.get('Sec-Secure-Session-Id')
+        
         if not session_id:
             # Also check the cookie
             session_id = request.cookies.get(self.config['cookie_name'])
@@ -93,7 +95,8 @@ class DBSC:
         token = request.get_data()
         try:
             # Expected audience should be the refresh URL
-            refresh_url = f"{request.url_root.rstrip('/')}{self.config['refresh_path']}"
+            # Using url_for ensures it respects ProxyFix/X-Forwarded-Proto
+            refresh_url = url_for('dbsc_refresh', _external=True)
             verify_pop_jwt(token, public_key, expected_aud=refresh_url, expected_sub=session_id)
             
             # Issue new short-lived cookie
@@ -107,7 +110,7 @@ class DBSC:
             challenge = str(uuid.uuid4())
             resp = make_response(jsonify({"error": "PoP verification failed", "details": str(e)}), 403)
             # DBSC challenge format
-            resp.headers['Sec-Session-Challenge'] = f'"{challenge}";id="{session_id}"'
+            resp.headers['Secure-Session-Challenge'] = f'"{challenge}";id="{session_id}"'
             return resp
 
     def is_authenticated(self):
